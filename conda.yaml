@@ -1,4 +1,4 @@
-name: cddb
+name: VarDiff
 channels:
   - pytorch
   - conda-forge
