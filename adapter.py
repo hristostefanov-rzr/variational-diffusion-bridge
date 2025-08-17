@@ -14,7 +14,7 @@ from CDDB.evaluation.fid_util import NumpyResizeDataset, collect_features
 import torch.distributed as dist
 from easydict import EasyDict as edict
 import matplotlib.pyplot as plt
-import wandb
+
 RESULT_DIR = Path("/hristo/results")
 
 
@@ -44,154 +44,6 @@ def compute_fid_features_from_numpy(numpy_arr, batch_size=256, mode="legacy_pyto
         num_workers=1, batch_size=batch_size, use_dataparallel=False, verbose=False,
     )
     return mu, sigma
-
-def log_images_into_wandb(xs_to_save, pred_x0_to_save):
-    #xs_grid = tu.make_grid(xs_to_save, nrow=2)
-    #pred_x0_to_save_grid = tu.make_grid(pred_x0_to_save, nrow=2)
-
-    #xs_grid_np = xs_grid.cpu().permute(1, 2, 0).numpy()
-    #pred_x0_grid_np = pred_x0_to_save_grid.cpu().permute(1, 2, 0).numpy()
-    
-    #wandb.log({
-    #"x_t_image_panel": wandb.Image(xs_grid_np, caption="X_t through the timesteps")
-    #})
-    #wandb.log({
-    #"mode_approximation_image_panel": wandb.Image(pred_x0_grid_np, caption="Mode approximation through the timesteps")
-    #})
-    #print(xs_to_save.shape)
-    #print(pred_x0_to_save.shape)
-    # Loop through each sample in the batch (4 samples)
-    for i in range(xs_to_save.shape[0]):
-        # Extract the sequence of images for the current batch (of shape [10, 3, 256, 256])
-        images = xs_to_save[i]
-        # Flip the image order backwards
-        images = images.flip(0)
-        # Rescale to [0, 255] and convert to uint8
-        images = ((images + 1) * 127.5).clamp(0, 255).to(torch.uint8)
-        npy_frames = np.array(images)
-        wandb.log({f"diffusion_gif_{i}": wandb.Video(npy_frames, fps=2, format="mp4")})
-        # Make a grid of the final results
-        grid = tu.make_grid(images, nrow=3)  # 4 images per row
-        # Convert the grid to a numpy array
-        grid = grid.permute(1, 2, 0).cpu().numpy()
-        # Log the grid to wandb
-        wandb.log({"diffuison_grid": wandb.Image(grid)})
-    print(f"Logged {xs_to_save.shape} diffusion samples to wandb.")
-    wandb.log({"single_image": wandb.Image(xs_to_save[2, 0, ...].cpu().permute(1, 2, 0).numpy())})
-"""
-def create_loss_plots(loss_history):
-
-    if loss_history is None:
-        return
-    loss_history = np.array(loss_history)
-
-    # Create figure and left axis
-    fig, ax1 = plt.subplots(figsize=(10, 5))
-
-    # Plot the loss-related curves on ax1
-    ax1.plot(loss_history[:, 0], color='tab:blue', label='Total Loss')
-    ax1.plot(loss_history[:, 1], color='tab:orange', label='Regularization Term')
-    ax1.plot(loss_history[:, 2], color='tab:green', label='Consistency Term')
-    ax1.set_xlabel('Iteration')
-    ax1.set_ylabel('Loss')
-    ax1.grid(True)
-
-    # If PSNR is present, plot it on the right axis
-    if loss_history.shape[1] > 3:
-        ax2 = ax1.twinx()
-        ax2.plot(loss_history[:, 3], color='tab:red', linestyle='--', label='PSNR')
-        ax2.set_ylabel('PSNR')
-
-        # Combine legends from both axes
-        lines_1, labels_1 = ax1.get_legend_handles_labels()
-        lines_2, labels_2 = ax2.get_legend_handles_labels()
-        ax1.legend(lines_1 + lines_2, labels_1 + labels_2, loc='upper right')
-    else:
-        ax1.legend(loc='upper right')
-
-    ax1.set_title('Loss History')
-
-    # Save the plot
-    loss_plot_path = "loss_history_plot.png"
-    fig.tight_layout()
-    plt.savefig(loss_plot_path)
-    plt.close(fig)
-
-    # Log the plot to wandb
-    wandb.log({"loss_history": wandb.Image(loss_plot_path)})
-"""
-def create_loss_plots(loss_history):
-    if loss_history is None:
-        return
-    loss_history = np.array(loss_history)
-
-    # Create figure and left axis (ax1)
-    fig, ax1 = plt.subplots(figsize=(10, 5))
-
-    # 1) Plot the loss‐related curves on ax1
-    ax1.plot(loss_history[:, 0], label='Total Loss')
-    ax1.plot(loss_history[:, 1], label='Regularization Term')
-    ax1.plot(loss_history[:, 2], label='Consistency Term')
-    ax1.set_xlabel('Iteration')
-    ax1.set_ylabel('Loss')
-    ax1.grid(True)
-
-    n_cols = loss_history.shape[1]
-
-    # Only create right‐hand axes if we have at least 4 columns (PSNR)
-    if n_cols >= 4:
-        # 2) First right axis for PSNR
-        ax2 = ax1.twinx()
-        ax2.plot(
-            loss_history[:, 3],
-            linestyle='--',
-            label='PSNR'
-        )
-        ax2.set_ylabel('PSNR')
-
-        # 3) Second right axis for LPIPS if available (column 4)
-        if n_cols >= 5:
-            ax3 = ax1.twinx()
-            # Move this second right axis slightly to the right:
-            ax3.spines["right"].set_position(("axes", 1.15))
-            # Make sure the spine is visible
-            ax3.spines["right"].set_visible(True)
-
-            ax3.plot(
-                loss_history[:, 4],
-                color='tab:purple',
-                linestyle='-.',
-                label='LPIPS'
-            )
-            ax3.set_ylabel('LPIPS')
-
-            # Combine legends from all three axes:
-            lines_1, labels_1 = ax1.get_legend_handles_labels()
-            lines_2, labels_2 = ax2.get_legend_handles_labels()
-            lines_3, labels_3 = ax3.get_legend_handles_labels()
-            ax1.legend(
-                lines_1 + lines_2 + lines_3,
-                labels_1 + labels_2 + labels_3,
-                loc='upper right'
-            )
-        else:
-            # Only PSNR (n_cols == 4)
-            lines_1, labels_1 = ax1.get_legend_handles_labels()
-            lines_2, labels_2 = ax2.get_legend_handles_labels()
-            ax1.legend(lines_1 + lines_2, labels_1 + labels_2, loc='upper right')
-    else:
-        # Fewer than 4 columns: only loss curves
-        ax1.legend(loc='upper right')
-
-    ax1.set_title('Loss & Metrics History')
-
-    # Save and log
-    loss_plot_path = "loss_history_plot.png"
-    fig.tight_layout()
-    plt.savefig(loss_plot_path)
-    plt.close(fig)
-
-    wandb.log({"loss_history": wandb.Image(loss_plot_path)})
 
 def compute_batch(ckpt_opt, corrupt_type, corrupt_method, out, opt):
     if "inpaint" in corrupt_type:
@@ -226,7 +78,7 @@ def compute_batch(ckpt_opt, corrupt_type, corrupt_method, out, opt):
 
     return corrupt_img, x1, mask, cond, y, clean_img, x1_pinv, x1_forw
 
-def sample_images(opt, run):
+def sample_images(opt):
     log = Logger(0, ".log")
     #opt.dataset_dir = "/home/hristo/Code/thesis/CDDB/imagenet_data/imagenet-mini/val"
     # get (default) ckpt option
@@ -312,9 +164,6 @@ def sample_images(opt, run):
                 nfe=nfe, verbose=opt.n_gpu_per_node==1, log_count=log_count
             )
         
-        if loader_itr <= 2:
-            create_loss_plots(loss_history)
-            log_images_into_wandb(xs, pred_x0s)
 
         recon_img = xs[:, 0, ...].to(opt.device)
         pred_x0s = pred_x0s[:, 0, ...].to(opt.device)

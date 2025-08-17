@@ -3,7 +3,6 @@
 import os
 os.environ["CUDA_VISIBLE_DEVICES"] = "0" 
 import sys
-import wandb
 # Add the CDDB folder to sys.path
 root_path = os.path.dirname(os.path.abspath(__file__))
 cddb_path = os.path.join(root_path, "CDDB")
@@ -104,34 +103,8 @@ model_used = "cddb" if opt.use_cddb else model_used
 model_used = "variational" if opt.use_variational else model_used
 model_used = "augmented_variational" if opt.use_augmented_variational else model_used
 
-run = wandb.init(
-    # Set the wandb entity where your project will be logged (generally your team name).
-    entity="thesis_team1",
-    # Set the wandb project where this run will be logged.
-    project="Distortion-Perception TradeOffs",
-    # Track hyperparameters and run metadata.
-    config={
-        "nfe": opt.nfe,
-        "model": model_used,
-        "lambda_scale": opt.lambda_scale,
-        "lambda_scheduling": opt.lambda_scheduling,
-        "timestep_sampling": opt.timestep_sampling,
-        "adam_lr": opt.adam_lr,
-        "adam_betas": opt.adam_betas,
-        "consistency_scale": opt.consistency_scale,
-        "start_step": opt.start_step,
-        "end_step": opt.end_step,
-        "inner_sampling_steps": opt.inner_sampling_steps,
-        "inner_optimization_steps": opt.inner_optimization_steps,
-        "perception_strength": opt.perception_strength,
-        "inner_consistency_steps": opt.inner_consistency_steps,
-    },
-    dir = "/hristo/results/wandb"
-)
-run.summary["nfe"] = opt.nfe
-run.summary["model"] = model_used
 download_ckpt(opt.ckpt_dir)
-arr, label_arr, clean_arr = sample_images(opt, run)
+arr, label_arr, clean_arr = sample_images(opt)
 log = Logger(rank = 1)
 arr = ((arr + 1)/2) * 255
 clean_arr = ((clean_arr + 1)/2)  * 255
@@ -140,15 +113,13 @@ arr = arr.to(opt.device)
 clean_arr = clean_arr.to(opt.device)
 psnr_score = calculate_psnr_score(arr, clean_arr)
 print("PSNR score: ", psnr_score)
-run.log({"PSNR": psnr_score})
-run.summary["PSNR"] = psnr_score
+
 _, sample_dir = get_recon_imgs_fn(opt, opt.nfe)
 fake_images_path = os.path.join(sample_dir, "recon")
 true_images_path = os.path.join(sample_dir, "label")
 fid_score = get_fid_value_of_folders(true_images_path, fake_images_path)
 print("FID score: ", fid_score)
-run.log({"FID": fid_score})
-run.summary["FID"] = fid_score
+
 
 
 

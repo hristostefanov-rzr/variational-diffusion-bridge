@@ -8,7 +8,6 @@
 import os
 import numpy as np
 import pickle
-import wandb
 
 import torch
 import torch.nn.functional as F
